@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Function
+public static class Function
 {
     public static float sigmoid(float input)
     {
@@ -13,7 +13,7 @@ public class Function
     }
     public static Vector sigmoid(Vector input)
     {
-        Vector output = new Vector();
+        var output = Vector.Init(Vector.Len(input));
         for (int i = 0; i < Vector.Len(input); ++i)
         {
             output.vec[i] = sigmoid(input.vec[i]);
@@ -22,10 +22,37 @@ public class Function
     }
     public static Matrix sigmoid(Matrix input)
     {
-        Matrix output = new Matrix();
+        var output = Matrix.Init(Matrix.Shape(input)[0], Matrix.Shape(input)[1]);
         for (int i = 0; i < Matrix.Shape(input)[1]; ++i)
         {
             output.colVector[i] = sigmoid(input.colVector[i]);
+        }
+        return output;
+    }
+    public static float Dsigmoid(float input)
+    {
+        var sig = sigmoid(input);
+        return sig * (1 - sig);
+    }
+    public static Vector Dsigmoid(Vector input)
+    {
+        var sig = sigmoid(input);
+        var diff = Vector.Minus(Vector.Ones(Vector.Len(sig)), sig);
+        var output = Vector.Init(Vector.Len(input));
+        for (int i = 0; i < Vector.Len(input); ++i)
+        {
+            output.vec[i] = sig.vec[i] * diff.vec[i];
+        }
+        return output;
+    }
+    public static Matrix Dsigmoid(Matrix input)
+    {
+        var sig = sigmoid(input);
+        var diff = Matrix.Minus(Matrix.Ones(Matrix.Shape(sig)[0], Matrix.Shape(sig)[1]), sig);
+        var output = Matrix.Init(Matrix.Shape(input)[0], Matrix.Shape(input)[1]);
+        for (int i = 0; i < Matrix.Shape(input)[1]; ++i)
+        {
+            output.colVector[i] = Dsigmoid(input.colVector[i]);
         }
         return output;
     }
@@ -43,22 +70,27 @@ public class Function
     public class Vector
     {
         public float[] vec;
+        public static Vector Init(int size)
+        {
+            var m = new Vector
+            {
+                vec = new float[size]
+            };
+            return m;
+        }
         public static Vector Zeros(int size)
         {
-            var result = new Vector
+            var result = Init(size);
+            for (int i = 0; i < size; ++i)
             {
-                vec = new float[size],
-            };
-            Array.Clear(result.vec, 0, Len(result));
+                result.vec[i] = 0f;
+            }
             return result;
         }
         public static Vector Ones(int size)
         {
-            var result = new Vector
-            {
-                vec = new float[size],
-            };
-            for (int i = 0; i < Len(result); ++i)
+            var result = Init(size);
+            for (int i = 0; i < size; ++i)
             {
                 result.vec[i] = 1f;
             }
@@ -86,7 +118,7 @@ public class Function
             }
             else
             {
-                Vector w = new Vector();
+                Vector w = Init(Len(u));
                 for (int i = 0; i < Len(u); ++i)
                 {
                     w.vec[i] += u.vec[i] + v.vec[i];
@@ -152,29 +184,33 @@ public class Function
     public class Matrix
     {
         public Vector[] colVector;
-        public static Matrix Zeros(int row, int col)
+        public static Matrix Init(int row, int col)
         {
-            var tempVec = Vector.Zeros(row);
-            var result = new Matrix
+            var m = new Matrix
             {
-                colVector = new Vector[col],
+                colVector = new Vector[col]
             };
             for (int i = 0; i < col; ++i)
             {
-                result.colVector[i] = tempVec;
+                m.colVector[i] = Vector.Init(row);
+            }
+            return m;
+        }
+        public static Matrix Zeros(int row, int col)
+        {
+            var result = Init(row, col);
+            for (int i = 0; i < col; ++i)
+            {
+                result.colVector[i] = Vector.Zeros(row);
             }
             return result;
         }
         public static Matrix Ones(int row, int col)
         {
-            var tempVec = Vector.Ones(row);
-            var result = new Matrix
-            {
-                colVector = new Vector[col],
-            };
+            var result = Init(row, col);
             for (int i = 0; i < col; ++i)
             {
-                result.colVector[i] = tempVec;
+                result.colVector[i] = Vector.Ones(row);
             }
             return result;
         }
@@ -193,6 +229,11 @@ public class Function
             int row = m.colVector[0].vec.Length;
             int[] size = new int[] { row, col };
             return size;
+        }
+        public static int Dimension(Matrix m)
+        {
+            var size = Shape(m);
+            return size[0] * size[1];
         }
         public static float Element(Matrix m, int rowIdx, int colIdx)
         {
@@ -214,7 +255,7 @@ public class Function
         }
         public static Matrix Add(Matrix m, Matrix n)
         {
-            if (Shape(m) != Shape(n))
+            if (Shape(m)[0] != Shape(n)[0] && Shape(m)[1] != Shape(n)[1])
             {
                 Debug.LogError("Two matrices have different shape.");
                 return null;
@@ -222,7 +263,7 @@ public class Function
             else
             {
                 var colNumber = Shape(m)[1];
-                Matrix w = new Matrix();
+                Matrix w = Init(Shape(m)[0], colNumber);
                 for (int i = 0; i < colNumber; ++i)
                 {
                     w.colVector[i] = Vector.Add(m.colVector[i], n.colVector[i]);
@@ -232,11 +273,6 @@ public class Function
         }
         public static Matrix Minus(Matrix m, Matrix n)
         {
-            if (Shape(m) != Shape(n))
-            {
-                Debug.LogError("Two matrices have different shape.");
-                return null;
-            }
             var nMinus = n;
             var colNumber = Shape(n)[1];
             for (int i = 0; i < colNumber; ++i)
@@ -294,12 +330,13 @@ public class Function
             var nRowNumber = Shape(n)[0];
             if (mColNumber != nRowNumber)
             {
+                Debug.Log(mColNumber.ToString() + " x " + nRowNumber.ToString());
                 Debug.LogError("Two matrices cannot multiply.");
                 return null;
             }
             else
             {
-                var mul = new Matrix();
+                var mul = Init(Shape(m)[0], Shape(n)[1]);
                 for (int i = 0; i < Shape(n)[1]; ++i)
                 {
                     var tempVec = Multiply(m, n.colVector[i]);
@@ -307,6 +344,57 @@ public class Function
                 }
                 return mul;
             }
+        }
+        public static Vector Flatten(Matrix m)
+        {
+            var shape = Shape(m);
+            int size = shape[0] * shape[1];
+            //Debug.Log(size);
+            var flattenVec = Vector.Init(size);
+            for (int i = 0; i < size; ++i)
+            {
+                int row = 0;
+                int col;
+                if (i < shape[1])
+                {
+                    col = i;
+                }
+                else
+                {
+                    row = Mathf.FloorToInt(i / shape[1]);
+                    col = i - row * shape[1];
+                }
+                //Debug.Log(i);
+                Debug.Log(row);
+                Debug.Log(col);
+                flattenVec.vec[i] = m.colVector[col].vec[row];
+            }
+            return flattenVec;
+        }
+        public static Matrix Transpose(Matrix m)
+        {
+            var mShape = Shape(m);
+            var trans = Init(mShape[1], mShape[0]);
+            for (int i = 0; i < mShape[1]; ++i)
+            {
+                for (int j = 0; j < mShape[0]; ++j)
+                {
+                    trans.colVector[j].vec[i] = m.colVector[i].vec[j];
+                }
+            }
+            return trans;
+        }
+        public static Matrix RandomMatrix(int row, int col)
+        {
+            var result = Init(row, col);
+            for (int j = 0; j < col; ++j)
+            {
+                for (int i = 0; i < row; ++i)
+                {
+                    result.colVector[j].vec[i] = UnityEngine.Random.Range(0f, 1f);
+                }
+            }
+            return result;
         }
     }
 }
